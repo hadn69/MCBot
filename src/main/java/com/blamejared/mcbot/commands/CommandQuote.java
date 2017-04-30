@@ -18,6 +18,7 @@ public class CommandQuote extends CommandBase {
         quotes.put(id++, "oh yeah im dumb - Kit");
         quotes.put(id++, "i call zenscripts \"mt scripts\" - Kit");
         quotes.put(id++, "yes - Shadows");
+        quotes.put(id++, "In the name of the moon, I'll punish you!! - Hadn69 [:sailormoon:]");
     }
     
     
