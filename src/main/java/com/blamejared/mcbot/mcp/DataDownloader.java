@@ -35,6 +35,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
 
 import gnu.trove.list.array.TIntArrayList;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -64,12 +65,15 @@ public enum DataDownloader {
     }).create();
     
     private final Path dataFolder = Paths.get(".", "data");
-    
+
+    @Getter
+    private VersionJson versions;
     private Map<String, SrgDatabase> srgTable = new HashMap<>();
     private Map<String, MappingDatabase> mappingTable = new HashMap<>();
 
     private class UpdateCheckTask implements Runnable {
 
+        @SuppressWarnings("serial")
         @Override
         public void run() {
             try {
@@ -79,10 +83,10 @@ public enum DataDownloader {
                 HttpURLConnection request = (HttpURLConnection) url.openConnection();
                 request.connect();
 
-                @SuppressWarnings("serial") 
-                VersionJson versions = new VersionJson(GSON.fromJson(new InputStreamReader(request.getInputStream()), new TypeToken<Map<String, MappingsJson>>(){}.getType()));
+                versions = new VersionJson(GSON.fromJson(new InputStreamReader(request.getInputStream()), new TypeToken<Map<String, MappingsJson>>(){}.getType()));
                 
                 for (String version : versions.getVersions()) {
+                   
                     Path versionFolder = dataFolder.resolve(version);
                     
                     log.info("Updating MCP data for for MC {}", version);
@@ -116,6 +120,8 @@ public enum DataDownloader {
                     File mappingsFolder = versionFolder.resolve("mappings").toFile();
 
                     MappingsJson mappings = versions.getMappings(version);
+                    if (mappings == null) continue;
+                    
                     int mappingVersion = mappings.latestStable() < 0 ? mappings.latestSnapshot() : mappings.latestStable();
                     String mappingsUrl = String.format(mappings.latestStable() < 0 ? MAPPINGS_URL_SNAPSHOT : MAPPINGS_URL_STABLE, mappingVersion, version);
                     url = new URL(mappingsUrl);

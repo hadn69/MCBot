@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,8 +43,10 @@ public class SrgDatabase {
         srgs.clear();
         ZipFile zipfile = new ZipFile(zip);
         List<String> srglines;
+        List<String> excLines;
         try {
             srglines = IOUtils.readLines(zipfile.getInputStream(zipfile.getEntry("joined.srg")), Charsets.UTF_8);
+            excLines = IOUtils.readLines(zipfile.getInputStream(zipfile.getEntry("joined.exc")), Charsets.UTF_8);
         } finally {
             zipfile.close();
         }
@@ -52,9 +55,30 @@ public class SrgDatabase {
         for (String srg : srglines) {
             matcher.reset(srg);
             if (matcher.matches()) {
-                ISrgMapping mapping = factory.create(Arrays.stream(MappingType.values()).filter(t -> t.getSrgKey().equals(matcher.group(1))).findFirst().get(), matcher.group(2));
+                ISrgMapping mapping = factory.create(Arrays.stream(MappingType.values()).filter(t -> Optional.ofNullable(t.getSrgKey()).orElse("").equals(matcher.group(1))).findFirst().get(), matcher.group(2));
                 if (!srgs.contains(mapping.getType(), mapping.getSRG())) {
-                	srgs.put(mapping.getType(), mapping.getSRG(), mapping);
+                    srgs.put(mapping.getType(), mapping.getSRG(), mapping);
+                }
+            }
+        }
+        for(String exc : excLines) {
+            if(exc.contains("V=")) {
+                String line = exc.split("V=")[1].substring(1);
+                String owner = exc.split("\\(")[0].substring(exc.split("\\(")[0].lastIndexOf("/")+1);
+                if(line.split(",").length > 0) {
+                    String[] params = line.split(",");
+                    for(String param : params) {
+                        @SuppressWarnings("null") 
+                        ISrgMapping mapping = new SrgMappingFactory.ParamMapping(param, owner);
+                        if(!srgs.contains(mapping.getType(), mapping.getSRG())) {
+                            srgs.put(mapping.getType(), mapping.getSRG(), mapping);
+                        }
+                    }
+                } else {
+                    ISrgMapping mapping = new SrgMappingFactory.ParamMapping(line, owner);
+                    if(!srgs.contains(mapping.getType(), mapping.getSRG())) {
+                        srgs.put(mapping.getType(), mapping.getSRG(), mapping);
+                    }
                 }
             }
         }
@@ -65,7 +89,7 @@ public class SrgDatabase {
         if (ret == null) {
             Predicate<Entry<String, ISrgMapping>> lookupFunc;
             if (type == MappingType.CLASS) {
-                lookupFunc = e -> e.getKey().substring(e.getKey().lastIndexOf('/') + 1).equals(name);
+                lookupFunc = e -> e.getKey().substring(e.getKey().lastIndexOf('/') + 1).equals(name) || e.getValue().getNotch().equals(name);
             } else {
                 lookupFunc = e -> e.getKey().contains(name);
             }

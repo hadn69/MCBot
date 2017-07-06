@@ -1,26 +1,18 @@
 package com.blamejared.mcbot.commands;
 
-import java.awt.Color;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Random;
-import java.util.Scanner;
-import java.util.stream.Collectors;
-
-import com.blamejared.mcbot.commands.api.Command;
-import com.blamejared.mcbot.commands.api.CommandBase;
-import com.blamejared.mcbot.commands.api.CommandException;
-import com.blamejared.mcbot.commands.api.ICommand;
-import com.blamejared.mcbot.mcp.DataDownloader;
-import com.blamejared.mcbot.mcp.IMapping;
-import com.blamejared.mcbot.mcp.ISrgMapping;
+import com.blamejared.mcbot.commands.api.*;
+import com.blamejared.mcbot.mcp.*;
 import com.blamejared.mcbot.mcp.ISrgMapping.MappingType;
 import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 
 import sx.blah.discord.handle.obj.IMessage;
 import sx.blah.discord.util.EmbedBuilder;
+
+import java.awt.*;
+import java.util.*;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Command
 public class CommandMCP extends CommandBase {
@@ -42,6 +34,7 @@ public class CommandMCP extends CommandBase {
         return type == null;
     }
     
+    @SuppressWarnings("null")
     @Override
     public Iterable<ICommand> getChildren() {
         if (isTransient()) {
@@ -52,8 +45,11 @@ public class CommandMCP extends CommandBase {
     
     @Override
     public void process(IMessage message, List<String> flags, List<String> args) throws CommandException {
+    
+        String mcver = args.size() > 1 ? args.get(1) : DataDownloader.INSTANCE.getVersions().getLatestVersion();
+
         if (type == MappingType.CLASS) {
-            List<ISrgMapping> classmappings = DataDownloader.INSTANCE.lookupSRG(MappingType.CLASS, args.get(0), "1.11");
+            List<ISrgMapping> classmappings = DataDownloader.INSTANCE.lookupSRG(MappingType.CLASS, args.get(0), mcver);
             if (!classmappings.isEmpty()) {
                 message.getChannel().sendMessage(Joiner.on('\n').join(classmappings));
             } else {
@@ -62,33 +58,45 @@ public class CommandMCP extends CommandBase {
             return;
         }
 
-        String mcver = args.size() > 1 ? args.get(1) : "1.11";
         List<IMapping> mappings = DataDownloader.INSTANCE.lookup(type, args.get(0), mcver);
         
         StringBuilder builder = new StringBuilder();
-        final EmbedBuilder embed = new EmbedBuilder();
-
         if (!mappings.isEmpty()) {
             mappings.forEach(m -> {
                 // FIXME implement param lookup
-                ISrgMapping srg = DataDownloader.INSTANCE.lookupSRG(type, m.getSRG(), mcver).get(0);
-                builder.append("\n");
-                if (m != mappings.get(0)) {
+                if(type == MappingType.PARAM){
+                    ISrgMapping srg = DataDownloader.INSTANCE.lookupSRG(type, m.getSRG(), mcver).get(0);
+                    builder.append("**MC " + mcver + ": " + srg.getOwner() + "." + m.getMCP() + "**\n");
+                    builder.append("\n`").append(m.getSRG()).append("` <=> `").append(m.getMCP()).append("`");
+                    builder.append("\n").append("Side: ").append(m.getSide());
+                }else {
+                    ISrgMapping srg = DataDownloader.INSTANCE.lookupSRG(type, m.getSRG(), mcver).get(0);
                     builder.append("\n");
+                    if(m != mappings.get(0)) {
+                        builder.append("\n");
+                    }
+                    builder.append("**MC " + mcver + ": " + srg.getOwner() + "." + m.getMCP() + "**\n");
+                    builder.append("__Name__: " + srg.getNotch() + " => `" + m.getSRG() + "` => " + m.getMCP() + "\n");
+                    builder.append("__Comment__: `" + (m.getComment().isEmpty() ? "None" : m.getComment()) + "`\n");
+                    builder.append("__Side__: `" + m.getSide() + "`\n");
+                    if(srg instanceof SrgMappingFactory.MethodMapping) {
+                        SrgMappingFactory.MethodMapping map = (SrgMappingFactory.MethodMapping) srg;
+                        builder.append("__AT__: `public ").append(Strings.nullToEmpty(srg.getOwner()).replaceAll("/", ".")).append(" ").append(srg.getSRG()).append(map.getSrgDesc()).append(" #").append(m.getMCP()).append("`");
+                    } else
+                        builder.append("__AT__: `public ").append(Strings.nullToEmpty(srg.getOwner()).replaceAll("/", ".")).append(" ").append(srg.getSRG()).append(" #").append(m.getMCP()).append("`");
                 }
-                builder.append("**MC " + mcver + ": " + srg.getOwner() + "." + m.getMCP() + "**\n");
-                builder.append("__Name__: " + srg.getNotch() + " => " + m.getSRG() + " => " + m.getMCP() + "\n");
-                builder.append("__Comment__: " + (m.getComment().isEmpty() ? "None" : m.getComment()) + "\n");
-                builder.append("__Side__: " + m.getSide() + "\n");
-            });
+                });
         } else {
             builder.append("No information found!");
         }
 
-        embed.ignoreNullEmptyFields();
-        embed.withDesc(builder.toString());
         rand.setSeed(builder.toString().hashCode());
-        embed.withColor(Color.HSBtoRGB(rand.nextFloat(), 1, 1));
+
+        final EmbedBuilder embed = new EmbedBuilder()
+        	.setLenient(true)
+        	.withDesc(builder.toString())
+        	.withColor(Color.HSBtoRGB(rand.nextFloat(), 1, 1));
+        
         message.getChannel().sendMessage(escapeMentions(message.getGuild(), embed.build()));
     }
     
