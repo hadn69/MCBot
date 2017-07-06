@@ -26,7 +26,7 @@ public class CommandLock extends CommandBase {
         List<IRole> moderators = new ArrayList<>();
         EnumSet<Permissions> sendPerm = EnumSet.noneOf(Permissions.class);
 
-        //Get all roles that have moderation privileges
+        //Get all roles that have moderation privileges but not the administrator permission 
         for (IRole current : roles) {
             if (current.getPermissions().contains(Permissions.MANAGE_CHANNEL)| current.getPermissions().contains(Permissions.MANAGE_MESSAGES) && !current.getPermissions().contains(Permissions.ADMINISTRATOR)){
                 //DEBUG - Prints out all matching user roles and their permissions
